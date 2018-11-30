@@ -1,0 +1,1 @@
+java -jar oidc-scope-claim-1.0.jar --spring.config.location=application.properties

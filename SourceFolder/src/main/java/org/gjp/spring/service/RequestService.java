@@ -9,6 +9,7 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang3.StringUtils;
@@ -37,38 +38,76 @@ public class RequestService {
 		HttpHeaders headers = createHeaders(request.getClientName(), request.getClientSecret());
 		headers.setAccept(Arrays.asList(MediaType.APPLICATION_JSON));
 		final MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
+		String grantType = null;
 		if (!StringUtils.isBlank(request.getGrantType())) {
-			map.put("grant_type", singletonList(request.getGrantType()));
+			grantType = request.getGrantType();
 		}
-		if (!StringUtils.isBlank(request.getUserName())) {
-			map.put("username", singletonList(request.getUserName()));
+
+		if (!StringUtils.isBlank(grantType) && "authorization_code".equals(grantType)) {
+			
+			 Map<String, String> params = new HashMap();
+			if (!StringUtils.isBlank(request.getGrantType())) {
+				params.put("grant_type", grantType);
+			}
+			if (!StringUtils.isBlank(request.getRedirectUri())) {
+				params.put("redirect_uri", request.getRedirectUri());
+			}
+			params.put("response_type", "code");
+			if (!StringUtils.isBlank(request.getScope())) {
+				params.put("scope",request.getScope());
+			}			
+			if (!StringUtils.isBlank(request.getClientName())) {
+				params.put("client_id",request.getClientName());
+			}
+			
+System.out.println(formatQueryParams(params));
+	
+			HttpEntity entity = new HttpEntity(headers);	
+			
+  		   ResponseEntity<String> resutl = restTemplate.exchange(request.getAuthorizeEndPoint()+formatQueryParams(params), HttpMethod.GET, entity, String.class);
+			System.out.println(resutl.getBody());
+
+			return null;
+		} else if (!StringUtils.isBlank(grantType) && "password".equals(grantType)) {
+
+			if (!StringUtils.isBlank(request.getGrantType())) {
+				map.put("grant_type", singletonList(grantType));
+			}
+			if (!StringUtils.isBlank(request.getUserName())) {
+				map.put("username", singletonList(request.getUserName()));
+			}
+			if (!StringUtils.isBlank(request.getGrantType())) {
+				map.put("password", singletonList(request.getPassword()));
+			}
+			
+			if (!StringUtils.isBlank(request.getScope())) {
+				map.put("scope", singletonList(request.getScope()));
+			}
+			HttpEntity entity = new HttpEntity(map, headers);
+			URI uri = null;
+			try {
+				uri = new URI(request.getTokenEndPoint());
+			} catch (URISyntaxException e) {
+				e.printStackTrace();
+			}
+			ResponseEntity<String> resutl = restTemplate.exchange(uri, HttpMethod.POST, entity, String.class);
+			Response response = new Response();
+			System.out.println(resutl.getBody());
+			try {
+				response = (Response) JSONUtil.fromJSON(resutl.getBody(), Response.class);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			if (!StringUtils.isBlank(response.getId_token())) {
+				return testDecodeJWT(response.getId_token());
+			} else {
+				return getUserInfo(response.getAccess_token(), request.getUserEndPoint());
+			}
+
+		} else {
+			return null;
 		}
-		if (!StringUtils.isBlank(request.getGrantType())) {
-			map.put("password", singletonList(request.getPassword()));
-		}
-		if (!StringUtils.isBlank(request.getScope())) {
-			map.put("scope", singletonList(request.getScope()));
-		}
-		HttpEntity entity = new HttpEntity(map, headers);
-		URI uri = null;
-		try {
-			uri = new URI(request.getTokenEndPoint());
-		} catch (URISyntaxException e) {
-			e.printStackTrace();
-		}
-		ResponseEntity<String> resutl = restTemplate.exchange(uri, HttpMethod.POST, entity, String.class);
-		Response response = new Response();
-		System.out.println(resutl.getBody());
-		try {
-			response = (Response) JSONUtil.fromJSON(resutl.getBody(), Response.class);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		if(!StringUtils.isBlank(response.getId_token())){
-			return testDecodeJWT(response.getId_token());
-		}else{			
-			return getUserInfo(response.getAccess_token(), request.getUserEndPoint());
-		}
+
 	}
 
 	@SuppressWarnings("serial")
@@ -104,9 +143,9 @@ public class RequestService {
 		map.put("JWT Body", body);
 		return body;
 	}
-	
-	public String getUserInfo(String accesstoken, String url ) {
-		
+
+	public String getUserInfo(String accesstoken, String url) {
+
 		HttpHeaders headers = new HttpHeaders();
 		URI uri = null;
 		try {
@@ -114,11 +153,20 @@ public class RequestService {
 		} catch (URISyntaxException e) {
 			e.printStackTrace();
 		}
-		headers.set("Authorization", "Bearer "+accesstoken);
+		headers.set("Authorization", "Bearer " + accesstoken);
 		HttpEntity entity = new HttpEntity(headers);
 		ResponseEntity<String> resutl = restTemplate.exchange(uri, HttpMethod.POST, entity, String.class);
 		System.out.println(resutl.getBody());
 		return resutl.getBody();
 	}
+	
+	
+	protected String formatQueryParams(Map<String, String> params) {
+		  return params.entrySet().stream()
+		      .map(p -> p.getKey() + "=" + p.getValue())
+		      .reduce((p1, p2) -> p1 + "&" + p2)
+		      .map(s -> "?" + s)
+		      .orElse("");
+		}
 
 }

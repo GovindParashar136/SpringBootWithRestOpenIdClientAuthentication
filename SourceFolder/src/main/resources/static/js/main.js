@@ -12,21 +12,25 @@ $(document).ready(function() {
 });
 
 function fire_ajax_submit() {
+	
+	var grantType= $("#grantType").children("option").filter(":selected").val();
 
 	// PREPARE FORM DATA
 	var formData = {
+		authorizeEndPoint : $("#authorizeEndPoint").val(),
 		tokenEndPoint : $("#tokenEndPoint").val(),
 		clientName :  $("#clientName").val(),
 		clientSecret :  $("#clientSecret").val(),
 		userName :  $("#userName").val(),
 		password : $("#password").val(),
-		clientName :  $("#clientName").val(),
-		grantType :  $("#grantType").val(),
+		redirectUri :  $("#redirectUri").val(),
+		grantType : grantType,
 		scope :  $("#scope").val(),
 		userEndPoint:  $("#userEndPoint").val()
 		
-	}
-
+	};
+	alert();
+alert(JSON.stringify(formData));
 	var protocol = window.location.protocol;
 	var host = window.location.host;
 	var pathArray = window.location.pathname.split('/');
